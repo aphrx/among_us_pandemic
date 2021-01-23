@@ -8,7 +8,7 @@ import argparse
 from PIL import Image
 
 class Agent:
-    def __init__(self, map, image, status, lifespan, sporatic, quarantine):
+    def __init__(self, map, image, status, lifespan, sporatic, quarantine, qprob, mortality):
         self.white_map = map
         self.image = image
         self.coords = [None, None]
@@ -20,24 +20,32 @@ class Agent:
         # Args
         self.virus_lifespan = int(lifespan)
         self.sporatic = float(sporatic)
-        self.quarantine = quarantine
+        self.quarantine = int(quarantine)
+        self.quarantine_prob = float(qprob)
+        self.mortality = float(mortality)
 
     def find_rand_location(self):    
         self.coords = self.white_map[random.randint(0, len(self.white_map))]
 
     def counter(self):
         self.duration += 1
-        if self.duration % self.virus_lifespan == 0 and self.status == 1:
-            self.status = 2
-            self.in_quarantine = False
-            self.find_rand_location()
+        if self.status == 1:
+            if self.duration % self.virus_lifespan == 0:
+                self.status = 2
+                if self.in_quarantine:
+                    self.in_quarantine = False
+                    self.find_rand_location()
+            elif random.random() < self.mortality:
+                self.status = 3
 
-        if self.duration % self.quarantine == 0 and self.status == 1 and not self.in_quarantine:
+        if self.duration % self.quarantine == 0 and self.status == 1 and random.random() <= self.quarantine_prob and not self.in_quarantine:
             self.coords = [400,750]
             self.in_quarantine = True
 
 
     def explore(self):
+        if self.status is 3:
+            return
         
         up = [self.coords[1]-3,self.coords[0]]
         down = [self.coords[1]+3,self.coords[0]]
@@ -81,7 +89,7 @@ class Agent:
 
 
 class Simulation:
-    def __init__(self, origin, infection_rate, radius, agents, lifespan, sporatic, quarantine):
+    def __init__(self, origin, infection_rate, radius, agents, lifespan, sporatic, quarantine, qprob, mortality):
         pygame.init()
         WIDTH = 823
         HEIGHT = 482
@@ -107,6 +115,8 @@ class Simulation:
         self.lifespan = int(lifespan)
         self.sporatic = float(sporatic)
         self.quarantine = int(quarantine)
+        self.quarantine_prob = float(qprob)
+        self.mortality = float(mortality)
 
     def add_agents(self, n):
         agents = []
@@ -114,7 +124,7 @@ class Simulation:
             infected = 0
             if i < self.infected_origin:
                 infected = 1
-            a = Agent(self.white_map, self.image, infected, self.lifespan, self.sporatic, self.quarantine)
+            a = Agent(self.white_map, self.image, infected, self.lifespan, self.sporatic, self.quarantine, self.quarantine_prob, self.mortality)
             a.find_rand_location()
             agents.append(a)
         return agents
@@ -126,6 +136,8 @@ class Simulation:
             char = pygame.image.load("assets/rsz_red.png")
         elif status is 2:
             char = pygame.image.load("assets/rsz_black.png")
+        elif status is 3:
+            char = pygame.image.load("assets/rsz_dead.png")
         self.screen.blit(char, (coords[1]-10, coords[0]-15))
         #pygame.draw.circle(self.screen, self.color, (coords[1],coords[0]), 5)
 
@@ -197,17 +209,27 @@ def main():
     argparser.add_argument(
         '-s', '--sporatic',
         metavar='SPORATIC',
-        default=0.1,
+        default=0.01,
         help='Assigns likelihood of agent changing direction when on a fixed path')
     argparser.add_argument(
         '-q', '--quarantine',
         metavar='QUARANTINE',
         default=-1,
         help='Assigns quarantine counter delay')
+    argparser.add_argument(
+        '-qp', '--quarantine-probability',
+        metavar='QUARANTINE_PROBABILITY',
+        default=1,
+        help='Assigns likelihood of agent quarantining when they get infected')
+    argparser.add_argument(
+        '-m', '--mortality',
+        metavar='MORTALITY',
+        default=0.001,
+        help='Assigns likelihood of agent dying while infected')
     
     args = argparser.parse_args()
 
-    s = Simulation(args.origin, args.infection_rate, args.radius, args.amount, args.lifespan, args.sporatic, args.quarantine)
+    s = Simulation(args.origin, args.infection_rate, args.radius, args.amount, args.lifespan, args.sporatic, args.quarantine, args.quarantine_probability, args.mortality)
     s.loop()
 
 if __name__ == '__main__':

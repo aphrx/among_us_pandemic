@@ -4,6 +4,8 @@ import random
 import cv2
 import sys
 import argparse
+import csv
+import datetime
 
 from PIL import Image
 
@@ -38,7 +40,7 @@ class Agent:
             elif random.random() < self.mortality:
                 self.status = 3
 
-        if self.duration % self.quarantine == 0 and self.status == 1 and random.random() <= self.quarantine_prob and not self.in_quarantine:
+        if self.duration % self.quarantine == 0 and self.status == 1 and random.random() <= self.quarantine_prob and not self.in_quarantine and not self.quarantine is -1:
             self.coords = [400,750]
             self.in_quarantine = True
 
@@ -89,7 +91,7 @@ class Agent:
 
 
 class Simulation:
-    def __init__(self, origin, infection_rate, radius, agents, lifespan, sporatic, quarantine, qprob, mortality):
+    def __init__(self, origin, infection_rate, radius, agents, lifespan, sporatic, quarantine, qprob, mortality, visualize):
         pygame.init()
         WIDTH = 823
         HEIGHT = 482
@@ -117,6 +119,7 @@ class Simulation:
         self.quarantine = int(quarantine)
         self.quarantine_prob = float(qprob)
         self.mortality = float(mortality)
+        self.visualize = bool(visualize)
 
     def add_agents(self, n):
         agents = []
@@ -132,14 +135,20 @@ class Simulation:
     def draw(self, coords, status):
         if status is 0:
             char = pygame.image.load("assets/rsz_white.png")
+            self.status[3] += 1
         elif status is 1:
             char = pygame.image.load("assets/rsz_red.png")
+            self.status[0] += 1
         elif status is 2:
             char = pygame.image.load("assets/rsz_black.png")
+            self.status[1] += 1
         elif status is 3:
             char = pygame.image.load("assets/rsz_dead.png")
+            self.status[2] += 1
+
+        
         self.screen.blit(char, (coords[1]-10, coords[0]-15))
-        #pygame.draw.circle(self.screen, self.color, (coords[1],coords[0]), 5)
+        status
 
     def infection_radius(self, agents):
         for a in agents:
@@ -154,8 +163,17 @@ class Simulation:
         pygame.draw.rect(self.screen, (100,0,0), (700, 350, 100, 100), 0)
         pygame.draw.rect(self.screen, (255,0,0), (700, 350, 100, 100), 3)
 
+    def visualize_graph(self):
+        
+        with open ('logs/' + str(self.name) +'.csv', mode='a') as file:
+            csv_writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            csv_writer.writerow([self.status[0], self.status[1], self.status[2], self.status[3]])
+
+
     def loop(self):        
         agents = self.add_agents(self.agent_quantity)
+        self.name = datetime.datetime.now()
+        self.c = 0
 
         while True:
             for event in pygame.event.get():
@@ -168,13 +186,18 @@ class Simulation:
             if self.quarantine != -1:
                 self.quarantine_room()
 
+            self.status = [0,0,0,0]
             for a in agents:
                 a.explore()
                 self.draw(a.get_coords(), a.get_status())
 
             self.infection_radius(agents)
-            
 
+            if self.visualize and self.c % 100 is 0:
+                self.visualize_graph()
+
+            self.c += 1
+            
             pygame.display.update()
             self.clock.tick(60)
 
@@ -209,7 +232,7 @@ def main():
     argparser.add_argument(
         '-s', '--sporatic',
         metavar='SPORATIC',
-        default=0.01,
+        default=0.1,
         help='Assigns likelihood of agent changing direction when on a fixed path')
     argparser.add_argument(
         '-q', '--quarantine',
@@ -226,10 +249,14 @@ def main():
         metavar='MORTALITY',
         default=0.001,
         help='Assigns likelihood of agent dying while infected')
+    argparser.add_argument(
+        '-v', '--visualize',
+        action='store_true',
+        help='Assigns if graph visualization should be enabled')
     
     args = argparser.parse_args()
 
-    s = Simulation(args.origin, args.infection_rate, args.radius, args.amount, args.lifespan, args.sporatic, args.quarantine, args.quarantine_probability, args.mortality)
+    s = Simulation(args.origin, args.infection_rate, args.radius, args.amount, args.lifespan, args.sporatic, args.quarantine, args.quarantine_probability, args.mortality, args.visualize)
     s.loop()
 
 if __name__ == '__main__':

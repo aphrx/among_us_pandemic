@@ -10,7 +10,7 @@ import datetime
 from PIL import Image
 
 class Agent:
-    def __init__(self, map, image, status, lifespan, sporatic, quarantine, qprob, mortality):
+    def __init__(self, map, image, status, args):
         self.white_map = map
         self.image = image
         self.coords = [None, None]
@@ -20,14 +20,17 @@ class Agent:
         self.in_quarantine = False
 
         # Args
-        self.virus_lifespan = int(lifespan)
-        self.sporatic = float(sporatic)
-        self.quarantine = int(quarantine)
-        self.quarantine_prob = float(qprob)
-        self.mortality = float(mortality)
+        self.virus_lifespan = int(args.lifespan)
+        self.sporadic = float(args.sporadic)
+        self.quarantine = int(args.quarantine)
+        self.quarantine_prob = float(args.quarantine_probability)
+        self.mortality = float(args.mortality)
 
-    def find_rand_location(self):    
-        self.coords = self.white_map[random.randint(0, len(self.white_map))]
+    def find_rand_location(self):
+        if self.status is 1:
+            self.coords = [100, 400]
+        else:
+            self.coords = self.white_map[random.randint(0, len(self.white_map))]
 
     def counter(self):
         self.duration += 1
@@ -68,7 +71,7 @@ class Agent:
                 if color == (255,255,255):
                     valid.append(d)
 
-        if self.last_dir is not None and  directions[self.last_dir] in valid and random.random() > self.sporatic:
+        if self.last_dir is not None and  directions[self.last_dir] in valid and random.random() > self.sporadic:
             move = directions[self.last_dir]
         else:
             move = random.choice(valid)
@@ -91,14 +94,14 @@ class Agent:
 
 
 class Simulation:
-    def __init__(self, origin, infection_rate, radius, agents, lifespan, sporatic, quarantine, qprob, mortality, visualize):
+    def __init__(self, args):
         pygame.init()
         WIDTH = 823
         HEIGHT = 482
         self.screen = pygame.display.set_mode([WIDTH, HEIGHT])
         self.clock = pygame.time.Clock()
 
-        self.bg = pygame.image.load("assets/overlay.png")
+        self.bg = pygame.image.load("assets/overlay_labeled.png")
         self.image = cv2.imread('assets/overlay.png')
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         thres = 50
@@ -106,20 +109,22 @@ class Simulation:
         self.image[mask] = (255, 255, 255)
         self.white_map = np.column_stack(np.where(mask == True))
 
+
         #INSIDE OF THE GAME LOOP
         self.color = (255, 0, 0)
 
         # arguments
-        self.infected_origin = int(origin)
-        self.infection_rate = float(infection_rate)
-        self.radius = int(radius)
-        self.agent_quantity = int(agents)
-        self.lifespan = int(lifespan)
-        self.sporatic = float(sporatic)
-        self.quarantine = int(quarantine)
-        self.quarantine_prob = float(qprob)
-        self.mortality = float(mortality)
-        self.visualize = bool(visualize)
+        self.args = args
+        self.infected_origin = int(args.origin)
+        self.infection_rate = float(args.infection_rate)
+        self.radius = int(args.radius)
+        self.agent_quantity = int(args.amount)
+        self.lifespan = int(args.lifespan)
+        self.sporadic = float(args.sporadic)
+        self.quarantine = int(args.quarantine)
+        self.quarantine_prob = float(args.quarantine_probability)
+        self.mortality = float(args.mortality)
+        self.visualize = bool(args.visualize)
 
     def add_agents(self, n):
         agents = []
@@ -127,7 +132,7 @@ class Simulation:
             infected = 0
             if i < self.infected_origin:
                 infected = 1
-            a = Agent(self.white_map, self.image, infected, self.lifespan, self.sporatic, self.quarantine, self.quarantine_prob, self.mortality)
+            a = Agent(self.white_map, self.image, infected, self.args)
             a.find_rand_location()
             agents.append(a)
         return agents
@@ -230,8 +235,8 @@ def main():
         default=1000,
         help='Assigns virus lifespan in frames')
     argparser.add_argument(
-        '-s', '--sporatic',
-        metavar='SPORATIC',
+        '-s', '--sporadic',
+        metavar='SPORADIC',
         default=0.1,
         help='Assigns likelihood of agent changing direction when on a fixed path')
     argparser.add_argument(
@@ -247,7 +252,7 @@ def main():
     argparser.add_argument(
         '-m', '--mortality',
         metavar='MORTALITY',
-        default=0.001,
+        default=0.0005,
         help='Assigns likelihood of agent dying while infected')
     argparser.add_argument(
         '-v', '--visualize',
@@ -256,7 +261,7 @@ def main():
     
     args = argparser.parse_args()
 
-    s = Simulation(args.origin, args.infection_rate, args.radius, args.amount, args.lifespan, args.sporatic, args.quarantine, args.quarantine_probability, args.mortality, args.visualize)
+    s = Simulation(args)
     s.loop()
 
 if __name__ == '__main__':
